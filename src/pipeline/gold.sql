@@ -12,8 +12,21 @@ AS SELECT
   dayofweek(d) IN (1, 7) AS is_weekend
 FROM (SELECT explode(sequence(DATE'2024-11-01', DATE'2026-10-31', INTERVAL 1 DAY)) AS d);
 
-CREATE OR REFRESH MATERIALIZED VIEW gold.dim_customer
-COMMENT 'Clientes del banco con segmento, estado y rangos de edad e ingreso'
+CREATE OR REFRESH MATERIALIZED VIEW gold.dim_customer (
+  customer_id STRING,
+  full_name STRING MASK ${catalog}.governance.mask_name,
+  rfc STRING MASK ${catalog}.governance.mask_pii,
+  curp STRING MASK ${catalog}.governance.mask_pii,
+  birth_date DATE,
+  age_band STRING,
+  sex STRING,
+  state STRING,
+  segment STRING,
+  monthly_income DECIMAL(12,2),
+  income_band STRING,
+  customer_since DATE
+)
+COMMENT 'Clientes del banco con segmento, estado y rangos de edad e ingreso. Nombre, RFC y CURP enmascarados salvo para risk_team'
 AS SELECT
   customer_id,
   full_name,
@@ -38,8 +51,14 @@ AS SELECT
   customer_since
 FROM silver.customers;
 
-CREATE OR REFRESH MATERIALIZED VIEW gold.dim_account
-COMMENT 'Cuentas de depósito de los clientes'
+CREATE OR REFRESH MATERIALIZED VIEW gold.dim_account (
+  account_id STRING,
+  customer_id STRING,
+  clabe STRING MASK ${catalog}.governance.mask_pii,
+  product STRING,
+  opened_at DATE
+)
+COMMENT 'Cuentas de depósito de los clientes. CLABE enmascarada salvo para risk_team'
 AS SELECT account_id, customer_id, clabe, product, opened_at
 FROM silver.accounts;
 
@@ -122,8 +141,27 @@ FROM silver.transfers t
 JOIN silver.accounts a ON t.account_id = a.account_id
 LEFT JOIN silver.alerts al ON t.transfer_id = al.transfer_id;
 
-CREATE OR REFRESH MATERIALIZED VIEW gold.fact_alert
-COMMENT 'Alertas generadas por las reglas, con analista, resolución, tiempo de atención y monto recuperado'
+CREATE OR REFRESH MATERIALIZED VIEW gold.fact_alert (
+  alert_id STRING,
+  transfer_id STRING,
+  account_id STRING,
+  customer_id STRING,
+  rule_code STRING,
+  created_date DATE,
+  created_at TIMESTAMP,
+  analyst STRING,
+  status STRING,
+  resolution STRING,
+  closed_at TIMESTAMP,
+  hours_to_close DOUBLE,
+  transfer_amount DECIMAL(14,2),
+  recovered_amount DECIMAL(14,2),
+  is_false_positive BOOLEAN,
+  is_confirmed_fraud BOOLEAN,
+  is_pld_report BOOLEAN
+)
+COMMENT 'Alertas generadas por las reglas, con analista, resolución, tiempo de atención y monto recuperado. Las alertas PLD solo las ve risk_team'
+WITH ROW FILTER ${catalog}.governance.alert_filter ON (rule_code)
 AS SELECT
   al.alert_id,
   al.transfer_id,
@@ -136,7 +174,7 @@ AS SELECT
   al.status,
   al.resolution,
   al.closed_at,
-  al.hours_to_close,
+  CAST(al.hours_to_close AS DOUBLE) AS hours_to_close,
   t.amount AS transfer_amount,
   al.recovered_amount,
   coalesce(al.resolution = 'falso_positivo', false) AS is_false_positive,
