@@ -9,13 +9,13 @@ resources:
       tasks:
         - task_key: generate
           notebook_task:
-            notebook_path: ../notebooks/01_generate.py
+            notebook_path: ../notebooks/01_generate.ipynb
             base_parameters:
               catalog: ${var.catalog}
 
         - task_key: security_functions
           notebook_task:
-            notebook_path: ../notebooks/03_governance.py
+            notebook_path: ../notebooks/03_governance.ipynb
             base_parameters:
               catalog: ${var.catalog}
               step: functions
@@ -31,7 +31,7 @@ resources:
           depends_on:
             - task_key: etl
           notebook_task:
-            notebook_path: ../notebooks/02_metric_views.py
+            notebook_path: ../notebooks/02_metric_views.ipynb
             base_parameters:
               catalog: ${var.catalog}
 
@@ -39,7 +39,7 @@ resources:
           depends_on:
             - task_key: metric_views
           notebook_task:
-            notebook_path: ../notebooks/03_governance.py
+            notebook_path: ../notebooks/03_governance.ipynb
             base_parameters:
               catalog: ${var.catalog}
               step: grants
